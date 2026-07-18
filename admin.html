@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin | Heramb Designing &amp; Printing</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="images/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<style>
+  body { background: var(--beige-bg); }
+  .admin-wrap { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
+  .admin-header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .admin-header img { height: 36px; }
+  .logout-btn, .refresh-btn {
+    background: var(--charcoal); color:#fff; border:none; padding:9px 18px;
+    border-radius: 999px; font-size: 13px; font-weight:700; cursor:pointer;
+  }
+  .refresh-btn { background: var(--orange); }
+  .logout-btn:hover { background: var(--orange-deep); }
+  .refresh-btn:hover { background: var(--orange-deep); }
+
+  #loginScreen {
+    max-width: 380px; margin: 90px auto; background: var(--beige-panel);
+    border: 1px solid var(--beige-line); border-radius: var(--radius-md);
+    padding: 34px; text-align:center; box-shadow: var(--shadow-card);
+  }
+  #loginScreen h2 { margin-top:0; }
+  #loginScreen input {
+    width:100%; padding: 12px 14px; border-radius: var(--radius-sm);
+    border: 1px solid var(--beige-line); font-family: var(--font-body); font-size: .95rem; margin: 14px 0;
+  }
+  #loginError { color: var(--coral-pop); font-size: .85rem; min-height: 18px; margin-top: 4px; }
+
+  #dashboard { display:none; }
+  .stats-row { display:grid; grid-template-columns: repeat(4,1fr); gap:16px; margin-bottom: 26px; }
+  .stat-box { background: var(--beige-panel); border:1px solid var(--beige-line); border-radius: var(--radius-md); padding: 18px 20px; }
+  .stat-box .num { font-family: var(--font-display); font-size: 1.7rem; font-weight:800; color: var(--orange-deep); }
+  .stat-box .lbl { font-size: .78rem; color: var(--charcoal-soft); text-transform:uppercase; letter-spacing:.04em; }
+
+  table { width:100%; border-collapse: collapse; background: var(--beige-panel); border-radius: var(--radius-md); overflow:hidden; }
+  thead th {
+    text-align:left; font-size: .74rem; text-transform:uppercase; letter-spacing:.05em;
+    color: var(--charcoal-soft); padding: 12px 14px; background: var(--beige-line);
+  }
+  tbody td { padding: 12px 14px; font-size: .9rem; border-bottom: 1px solid var(--beige-line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--orange-tint); }
+  .msg-cell { max-width: 240px; white-space: pre-wrap; }
+  .status-select {
+    padding: 6px 8px; border-radius: 8px; border:1px solid var(--beige-line); font-size: .8rem; font-family: var(--font-body);
+  }
+  .del-btn { background:none; border:none; color: var(--coral-pop); cursor:pointer; font-size: .85rem; font-weight:700; }
+  .del-btn:hover { text-decoration: underline; }
+  .empty-note { text-align:center; padding: 50px 20px; color: var(--charcoal-faint); }
+  .table-wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <h2>Admin Login</h2>
+  <p style="color:var(--charcoal-soft); font-size:.9rem;">Enter the admin password to view customer enquiries.</p>
+  <input type="password" id="loginPassword" placeholder="Admin password" autocomplete="current-password">
+  <button class="btn btn-primary" id="loginBtn" style="width:100%;">Log In</button>
+  <p id="loginError"></p>
+</div>
+
+<div id="dashboard" class="admin-wrap">
+  <div class="admin-header">
+    <a href="index.html" class="brand"><img src="images/logo.png" alt="Heramb Designing & Printing"></a>
+    <div style="display:flex; gap:10px;">
+      <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
+      <button class="logout-btn" id="logoutBtn">Log Out</button>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="num" id="statTotal">0</div><div class="lbl">Total Enquiries</div></div>
+    <div class="stat-box"><div class="num" id="statNew">0</div><div class="lbl">New</div></div>
+    <div class="stat-box"><div class="num" id="statPaid">0</div><div class="lbl">Paid</div></div>
+    <div class="stat-box"><div class="num" id="statCompleted">0</div><div class="lbl">Completed</div></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Name</th><th>Phone</th><th>Service</th><th>Amount</th><th>Message</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="enquiryTableBody"></tbody>
+    </table>
+  </div>
+  <p class="empty-note" id="emptyNote" style="display:none;">No enquiries yet. New customer submissions from the Payment page will appear here automatically.</p>
+</div>
+
+<script>
+  var apiBase = window.HERAMB_API_BASE || '';
+
+  var loginScreen = document.getElementById('loginScreen');
+  var dashboard = document.getElementById('dashboard');
+  var loginBtn = document.getElementById('loginBtn');
+  var loginPassword = document.getElementById('loginPassword');
+  var loginError = document.getElementById('loginError');
+
+  function showDashboard() {
+    loginScreen.style.display = 'none';
+    dashboard.style.display = 'block';
+    loadEnquiries();
+  }
+  function showLogin() {
+    loginScreen.style.display = 'block';
+    dashboard.style.display = 'none';
+  }
+
+  function checkSession() {
+    fetch(apiBase + '/api/admin/check', { credentials: 'include' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.loggedIn) showDashboard(); else showLogin(); })
+      .catch(function () { showLogin(); });
+  }
+
+  function doLogin() {
+    loginError.textContent = '';
+    var pw = loginPassword.value;
+    if (!pw) return;
+    loginBtn.disabled = true;
+    fetch(apiBase + '/api/admin/login', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    })
+      .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, d: d }; }); })
+      .then(function (r) {
+        if (r.ok) { loginPassword.value = ''; showDashboard(); }
+        else loginError.textContent = r.d.error || 'Login failed.';
+      })
+      .catch(function () { loginError.textContent = 'Could not reach the server. Check your connection or config.js API URL.'; })
+      .finally(function () { loginBtn.disabled = false; });
+  }
+  loginBtn.addEventListener('click', doLogin);
+  loginPassword.addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+
+  document.getElementById('logoutBtn').addEventListener('click', function () {
+    fetch(apiBase + '/api/admin/logout', { method: 'POST', credentials: 'include' }).then(showLogin);
+  });
+  document.getElementById('refreshBtn').addEventListener('click', loadEnquiries);
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str == null ? '' : str;
+    return div.innerHTML;
+  }
+
+  function loadEnquiries() {
+    fetch(apiBase + '/api/admin/enquiries', { credentials: 'include' })
+      .then(function (res) {
+        if (res.status === 401) { showLogin(); throw new Error('not logged in'); }
+        return res.json();
+      })
+      .then(function (data) {
+        var rows = data.enquiries || [];
+        var tbody = document.getElementById('enquiryTableBody');
+        var emptyNote = document.getElementById('emptyNote');
+        tbody.innerHTML = '';
+
+        document.getElementById('statTotal').textContent = rows.length;
+        document.getElementById('statNew').textContent = rows.filter(function (r) { return r.status === 'new'; }).length;
+        document.getElementById('statPaid').textContent = rows.filter(function (r) { return r.status === 'paid'; }).length;
+        document.getElementById('statCompleted').textContent = rows.filter(function (r) { return r.status === 'completed'; }).length;
+
+        if (!rows.length) { emptyNote.style.display = 'block'; return; }
+        emptyNote.style.display = 'none';
+
+        rows.forEach(function (r) {
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + escapeHtml(r.created_at) + '</td>' +
+            '<td>' + escapeHtml(r.name) + '</td>' +
+            '<td>' + escapeHtml(r.phone) + '</td>' +
+            '<td>' + escapeHtml(r.service) + '</td>' +
+            '<td>' + (r.amount ? '₹' + escapeHtml(r.amount) : '—') + '</td>' +
+            '<td class="msg-cell">' + escapeHtml(r.message) + '</td>' +
+            '<td></td><td></td>';
+
+          var statusTd = tr.children[6];
+          var select = document.createElement('select');
+          select.className = 'status-select';
+          ['new', 'contacted', 'paid', 'completed', 'spam'].forEach(function (s) {
+            var opt = document.createElement('option');
+            opt.value = s; opt.textContent = s;
+            if (s === r.status) opt.selected = true;
+            select.appendChild(opt);
+          });
+          select.addEventListener('change', function () {
+            fetch(apiBase + '/api/admin/enquiries/' + r.id, {
+              method: 'PATCH', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: select.value })
+            }).then(loadEnquiries);
+          });
+          statusTd.appendChild(select);
+
+          var delTd = tr.children[7];
+          var delBtn = document.createElement('button');
+          delBtn.className = 'del-btn';
+          delBtn.textContent = 'Delete';
+          delBtn.addEventListener('click', function () {
+            if (!confirm('Delete this enquiry permanently?')) return;
+            fetch(apiBase + '/api/admin/enquiries/' + r.id, { method: 'DELETE', credentials: 'include' }).then(loadEnquiries);
+          });
+          delTd.appendChild(delBtn);
+
+          tbody.appendChild(tr);
+        });
+      })
+      .catch(function (e) { console.error(e); });
+  }
+
+  checkSession();
+</script>
+</body>
+</html>
